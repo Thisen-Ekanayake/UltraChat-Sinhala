@@ -12,3 +12,14 @@ tiktoken>=0.6          # optional: exact token counts (stage 2 falls back if abs
 #   pip install tokenizers        # PEP 668 VM: add --user or --break-system-packages
 # tokenizers>=0.19
 # transformers>=4.40   # optional: used if present, gives identical counts
+
+# Stage 9 only (09_translate.py, standalone — NLLB-200 en->si translation).
+# Heavyweight; install only on the box that runs translation:
+#   pip install "transformers>=4.40" "torch>=2.1" sentencepiece sacremoses nltk
+# transformers>=4.40        # AutoModelForSeq2SeqLM (NLLB-200)
+# torch>=2.1                # CPU build is fine; CUDA build for GPU
+# sentencepiece>=0.1.99     # NLLB tokenizer
+# sacremoses>=0.1           # NLLB tokenizer pre-tokeniser (silences a warning)
+# nltk>=3.8                 # better sentence segmentation (punkt); regex fallback otherwise
+# Optional fast CPU path (recommended for the 4-vCPU VM): CTranslate2 int8.
+# ctranslate2>=4.0
