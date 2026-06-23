@@ -28,8 +28,17 @@ and a timestamped run log are also written to `results/`.
 | `04_analyze_unicode_scripts.py` | `04_unicode_scripts.json` | Non-ASCII & per-script (multilingual) composition |
 | `05_analyze_translation_risks.py` | `05_translation_risks.json` | Sinhala MT **risk register** + examples |
 | `06_aggregate_report.py` | `ANALYSIS_REPORT.md` | Academic markdown report (no data pass) |
+| `07_tokenize_splits.py` | `07_tokenization.json` | SinLlama token counts/distributions, **sft & gen separately** |
 
 Run a single stage directly, e.g. `python 03_analyze_content_features.py`.
+
+`run_all.sh` runs stages 0–6. **Stage 7 is standalone** (not in `run_all.sh`)
+because it needs the SinLlama model directory, supplied separately on the VM:
+
+```bash
+UC_TOKENIZER_DIR=/path/to/SinLlama_merged_bf16 python 07_tokenize_splits.py
+pip install transformers tokenizers      # stage-7 dependencies
+```
 
 ## Configuration (environment variables, see `config.py`)
 
@@ -37,6 +46,7 @@ Run a single stage directly, e.g. `python 03_analyze_content_features.py`.
 |---|---|---|
 | `UC_DATA_DIR` | `./data` | Directory of `*.parquet` shards |
 | `UC_RESULTS_DIR` | `./results` | JSON artifacts + report |
+| `UC_TOKENIZER_DIR` | `./SinLlama_merged_bf16` | SinLlama model dir for stage 7 |
 | `UC_HF_REPO` | `HuggingFaceH4/ultrachat_200k` | Source dataset |
 
 ## Design notes
