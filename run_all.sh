@@ -9,7 +9,12 @@
 #   bash run_all.sh                  # install deps, download, analyse, report
 #   bash run_all.sh --skip-download  # reuse parquet shards already in UC_DATA_DIR
 #   bash run_all.sh --skip-install   # do not pip install (deps already present)
+#   bash run_all.sh --venv           # isolate deps in ./.venv (recommended on VMs)
 #   bash run_all.sh --splits "train_sft test_sft"   # download a subset only
+#
+# Dependency install is robust to PEP 668 "externally-managed-environment"
+# (common on Debian/Ubuntu GCP VMs): it tries a plain install, then falls back
+# to --user, then --break-system-packages. Use --venv to sidestep this entirely.
 #
 # Environment overrides (see config.py):
 #   UC_DATA_DIR, UC_RESULTS_DIR, UC_HF_REPO
@@ -23,12 +28,14 @@ cd "$SCRIPT_DIR"
 PY="${PYTHON:-python3}"
 SKIP_DOWNLOAD=0
 SKIP_INSTALL=0
+USE_VENV=0
 DOWNLOAD_SPLITS=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-download) SKIP_DOWNLOAD=1; shift ;;
     --skip-install)  SKIP_INSTALL=1; shift ;;
+    --venv)          USE_VENV=1; shift ;;
     --splits)        DOWNLOAD_SPLITS="$2"; shift 2 ;;
     -h|--help)       grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
@@ -55,10 +62,37 @@ run_stage() {
 log "Pipeline start — $(date)"
 log "SCRIPT_DIR=$SCRIPT_DIR  RESULTS_DIR=$RESULTS_DIR  PYTHON=$PY"
 
+# Install requirements, tolerating PEP 668 externally-managed environments.
+# Returns non-zero only if every strategy fails.
+install_deps() {
+  if "$PY" -m pip install -q -r requirements.txt 2>>"$LOG_FILE"; then
+    return 0
+  fi
+  log "Plain pip install failed (likely externally-managed); retrying with --user"
+  if "$PY" -m pip install -q --user -r requirements.txt 2>>"$LOG_FILE"; then
+    return 0
+  fi
+  log "Retrying with --break-system-packages"
+  "$PY" -m pip install -q --break-system-packages -r requirements.txt 2>>"$LOG_FILE"
+}
+
 # --- 0. dependencies --------------------------------------------------------
+if [[ "$USE_VENV" -eq 1 ]]; then
+  if [[ ! -d "$SCRIPT_DIR/.venv" ]]; then
+    run_stage "Creating virtualenv (.venv)" "$PY" -m venv "$SCRIPT_DIR/.venv"
+  fi
+  PY="$SCRIPT_DIR/.venv/bin/python"
+  log "Using virtualenv interpreter: $PY"
+fi
+
 if [[ "$SKIP_INSTALL" -eq 0 ]]; then
-  run_stage "Installing dependencies" \
-    "$PY" -m pip install -q -r requirements.txt
+  log "Installing dependencies"
+  if install_deps; then
+    log "Dependencies installed"
+  else
+    log "ERROR: could not install dependencies by any method; see $LOG_FILE"
+    exit 1
+  fi
 else
   log "Skipping dependency install (--skip-install)"
 fi
