@@ -1,0 +1,26 @@
+# --- Downloaded dataset (large; reproducible via 00_download_dataset.py) ---
+data/
+
+# --- Generated analysis artifacts (reproducible via run_all.sh) ---
+results/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Logs ---
+*.log
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
