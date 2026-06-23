@@ -81,6 +81,64 @@ CHARS_PER_TOKEN_HEURISTIC = 4.0
 BATCH_SIZE = 2000
 
 # ---------------------------------------------------------------------------
+# Translation (stage 9) — NLLB-200 English -> Sinhala
+# ---------------------------------------------------------------------------
+# Open-source NMT is the only budget-viable path at this corpus volume (see the
+# cost model / report §8). NLLB-200-3.3B covers sin_Sinh natively. All knobs are
+# env-overridable so the same script runs on a CPU VM and on a GPU box.
+NLLB_MODEL = os.environ.get("UC_NLLB_MODEL", "facebook/nllb-200-3.3B")
+SRC_LANG = os.environ.get("UC_SRC_LANG", "eng_Latn")   # FLORES-200 code
+TGT_LANG = os.environ.get("UC_TGT_LANG", "sin_Sinh")   # Sinhala
+
+# Device / precision. "auto" picks cuda if available else cpu; on cpu the dtype
+# defaults to bfloat16 (this VM's Xeon has AMX-BF16) which halves the weight
+# footprint (3.3B params: ~13 GB fp32 -> ~6.6 GB bf16, fits 16 GB RAM).
+TRANSLATE_DEVICE = os.environ.get("UC_DEVICE", "auto")  # auto | cuda | cpu
+TRANSLATE_DTYPE = os.environ.get("UC_DTYPE", "auto")    # auto | fp32 | fp16 | bf16
+# Number of torch CPU threads (0 = let torch decide). Set to the VM's vCPU count.
+CPU_THREADS = int(os.environ.get("UC_CPU_THREADS", "0"))
+
+# Batching / length limits. NLLB's positional limit is 512 tokens; long messages
+# are sentence-segmented (see mt_preprocess) so each segment fits.
+TRANSLATE_BATCH = int(os.environ.get("UC_TRANSLATE_BATCH", "16"))   # segments per fwd pass
+DIALOGUE_CHUNK = int(os.environ.get("UC_DIALOGUE_CHUNK", "64"))     # dialogues buffered before a flush
+NUM_BEAMS = int(os.environ.get("UC_NUM_BEAMS", "1"))               # 1 = greedy (fastest)
+MAX_INPUT_TOKENS = int(os.environ.get("UC_MAX_INPUT_TOKENS", "512"))
+MAX_NEW_TOKENS = int(os.environ.get("UC_MAX_NEW_TOKENS", "512"))
+MAX_SEGMENT_CHARS = int(os.environ.get("UC_MAX_SEGMENT_CHARS", "1000"))  # hard wrap for segmentation
+
+# Mask code/URLs/math/markup before translating and restore after (report §8.3).
+MASK_BEFORE_TRANSLATE = os.environ.get("UC_MASK", "1") not in ("0", "false", "False")
+
+# Where translated splits are written (one resumable JSONL per split).
+OUTPUT_DIR = Path(
+    os.environ.get("UC_OUTPUT_DIR", ROOT_DIR / "data" / "translated")
+).resolve()
+
+# Exact source-character totals per split (from stage 2), used to project full
+# run time in the benchmark when the live stats JSON is not on disk.
+SPLIT_TOTAL_CHARS = {
+    "train_sft": 1_181_936_140,
+    "test_sft": 130_616_688,
+    "train_gen": 1_088_276_995,
+    "test_gen": 119_820_387,
+}
+
+# Dialogue counts per split (from the dataset card / stage 1), used to estimate
+# how much of a split is already done when resuming a translation run.
+SPLIT_NUM_DIALOGUES = {
+    "train_sft": 207_865,
+    "test_sft": 23_110,
+    "train_gen": 256_032,
+    "test_gen": 28_304,
+}
+
+
+def group_total_chars(group: str) -> int:
+    """Total source characters for a split group ('sft' / 'gen')."""
+    return sum(SPLIT_TOTAL_CHARS.get(s, 0) for s in SPLIT_GROUPS.get(group, []))
+
+# ---------------------------------------------------------------------------
 # Split discovery
 # ---------------------------------------------------------------------------
 _SHARD_RE = re.compile(r"^(?P<split>.+?)-\d{5}-of-\d{5}.*\.parquet$")
