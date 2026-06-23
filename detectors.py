@@ -27,14 +27,25 @@ DETECTORS: dict[str, re.Pattern] = {
     "numbered_list": re.compile(r"^\s*\d+[.)]\s+\S", re.M),
     # ATX headings.
     "heading": re.compile(r"^\s*#{1,6}\s+\S", re.M),
-    # LaTeX / math — destroyed by MT. Explicit TeX commands, display math
-    # ($$..$$), and inline $...$ ONLY when a math token (\ ^ _ =) appears
-    # between the delimiters, so plain currency ("$5 ... $10") is not matched.
+    # LaTeX / math — destroyed by MT. UNAMBIGUOUS signals only, because in a
+    # code-heavy corpus the generic TeX delimiters \( \[ \d and bare $...$ are
+    # indistinguishable from regex escapes, Swift/Kotlin string interpolation
+    # ("\(x)") and shell/PHP variables ("$x"). We therefore match only:
+    #   * named math control sequences (\frac, \sum, \alpha, ... — no
+    #     programming language uses these);
+    #   * \begin{ / \end{ environments;
+    #   * display math $$...$$;
+    #   * inline $...$ with a *braced* sub/superscript (x^{2}, a_{i}).
+    # Trade-off (documented): bare inline math such as "$E=mc^2$" or "\(x+y\)"
+    # is not counted. Such notation is rare here, and when it co-occurs with
+    # code it is still masked by the code detectors.
     "latex_math": re.compile(
-        r"\\\(|\\\)|\\\[|\\\]|\\frac|\\sum|\\int|\\sqrt|\\begin\{"
-        r"|\\(alpha|beta|gamma|theta|pi|cdot|times|leq|geq|neq|infty|partial)\b"
+        r"\\(?:frac|sum|prod|int|sqrt|lim|infty|partial|nabla"
+        r"|alpha|beta|gamma|delta|theta|lambda|mu|sigma|pi|cdot|times"
+        r"|leq|geq|neq|approx|equiv|rightarrow|forall|exists)\b"
+        r"|\\begin\{|\\end\{"
         r"|\$\$[^$]+\$\$"
-        r"|\$[^$\n]*[\\^_=][^$\n]*\$"
+        r"|\$(?!\()[^$\n]*[\^_]\{[^$\n]*\$"
     ),
     # HTML tags — markup to preserve.
     "html_tag": re.compile(r"</?[a-zA-Z][a-zA-Z0-9]*(\s[^>]*)?>"),
@@ -68,7 +79,7 @@ SEVERITY: dict[str, str] = {
 RATIONALE: dict[str, str] = {
     "code_fence": "MT translates code keywords/identifiers and string literals, breaking syntax; mask before translating.",
     "inline_code": "Inline technical tokens get translated or transliterated; protect with placeholders.",
-    "latex_math": "Mathematical notation is reordered/garbled by NMT; mask spans before translating.",
+    "latex_math": "LaTeX/math notation (TeX commands, $$display$$, $x^2$) is reordered/garbled by NMT; mask spans before translating. Excludes shell $(...) and currency.",
     "url": "URLs must be preserved verbatim; MT may percent-mangle or translate path segments.",
     "email": "Email addresses are entities that must survive untouched.",
     "html_tag": "Markup tags can be dropped or reordered, corrupting structure.",
