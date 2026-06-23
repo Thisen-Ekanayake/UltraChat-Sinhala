@@ -17,24 +17,24 @@ Token counts use raw content tokens (``add_special_tokens=False``); the
 per-dialogue total adds a small fixed overhead per turn to approximate chat
 templating (see TURN_OVERHEAD_TOKENS), which is reported alongside the raw sum.
 
-This stage is standalone (not wired into run_all.sh) because it requires the
-SinLlama model directory, which is provided separately on the VM. Point it at
-the model with ``UC_TOKENIZER_DIR`` (see config.py).
+This stage is standalone (not wired into scripts/run_analysis.sh) because it
+requires the SinLlama model directory, which is provided separately on the VM.
+Point it at the model with ``UC_TOKENIZER_DIR`` (see config.py).
 
 Output: results/07_tokenization.json
 
-Usage:
-    python 07_tokenize_splits.py                 # all discovered splits
-    python 07_tokenize_splits.py --splits train_sft test_sft
-    UC_TOKENIZER_DIR=/models/SinLlama_merged_bf16 python 07_tokenize_splits.py
+Usage (run from the repo root):
+    python -m pipeline.tokenization.tokenize_splits                 # all discovered splits
+    python -m pipeline.tokenization.tokenize_splits --splits train_sft test_sft
+    UC_TOKENIZER_DIR=/models/SinLlama_merged_bf16 python -m pipeline.tokenization.tokenize_splits
 """
 from __future__ import annotations
 
 import argparse
 import sys
 
-import config
-from uc_common import (
+from pipeline import config
+from pipeline.common import (
     LengthAccumulator, StepTimer, fmt_int, get_logger,
     iter_messages, iter_split_records, require_splits, save_result,
 )

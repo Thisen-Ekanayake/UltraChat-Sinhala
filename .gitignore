@@ -1,15 +1,14 @@
-# --- Downloaded dataset (large; reproducible via 00_download_dataset.py) ---
+# --- Downloaded dataset (large; reproducible via pipeline.analysis.download_dataset) ---
 data/
 
 # --- Local model directories / archives (multi-GB; supplied separately) ---
 SinLlama_merged_bf16/
-UltraChat-Analysis/
 *.safetensors
 *.tar.gz
 *.tar
 *.zip
 
-# --- Generated analysis artifacts (reproducible via run_all.sh) ---
+# --- Generated analysis artifacts (reproducible via scripts/run_analysis.sh) ---
 results/
 
 # --- Python ---

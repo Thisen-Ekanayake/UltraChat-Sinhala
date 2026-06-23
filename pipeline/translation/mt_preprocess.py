@@ -24,9 +24,9 @@ from __future__ import annotations
 
 import re
 
-from detectors import DETECTORS
+from pipeline.detectors import DETECTORS
 
-import config
+from pipeline import config
 
 # ---------------------------------------------------------------------------
 # Masking

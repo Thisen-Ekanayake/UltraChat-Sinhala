@@ -6,11 +6,11 @@ Fetches only the parquet data files (and README) for the configured repo into
 which is resumable: re-running skips files already present (hash-checked), so a
 dropped connection is safe to retry.
 
-Usage
+Usage (run from the repo root)
 -----
-    python 00_download_dataset.py            # full dataset into UC_DATA_DIR
-    python 00_download_dataset.py --splits train_sft test_sft
-    python 00_download_dataset.py --list     # list remote files, download nothing
+    python -m pipeline.analysis.download_dataset            # full dataset into UC_DATA_DIR
+    python -m pipeline.analysis.download_dataset --splits train_sft test_sft
+    python -m pipeline.analysis.download_dataset --list     # list remote files only
 
 The downloaded shards are symlinked/copied into a flat layout under DATA_DIR so
 that the analysis stages discover them via config.discover_splits().
@@ -22,8 +22,8 @@ import shutil
 import sys
 from pathlib import Path
 
-import config
-from uc_common import fmt_int, get_logger
+from pipeline import config
+from pipeline.common import fmt_int, get_logger
 
 log = get_logger("download")
 

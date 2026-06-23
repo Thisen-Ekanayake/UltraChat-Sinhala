@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stage 8 — render the SinLlama tokenisation analysis as a markdown report.
 
-Reads results/07_tokenization.json (produced by 07_tokenize_splits.py) and
+Reads results/07_tokenization.json (produced by tokenize_splits) and
 writes results/TOKENIZATION_REPORT.md: token volume per split and per group
 (sft / gen), tokenizer fertility, message/dialogue length distributions and
 context-window fit, plus a training-budget discussion.
@@ -17,8 +17,8 @@ from __future__ import annotations
 import sys
 import time
 
-import config
-from uc_common import fmt_int, get_logger, load_result, result_path
+from pipeline import config
+from pipeline.common import fmt_int, get_logger, load_result, result_path
 
 log = get_logger("tok_report")
 REPORT = "TOKENIZATION_REPORT.md"
@@ -204,8 +204,8 @@ def sec_repro() -> str:
     return h(2, "6. Reproducibility") + (
         "```\n"
         "pip install tokenizers\n"
-        "UC_TOKENIZER_DIR=/path/to/SinLlama_merged_bf16 python 07_tokenize_splits.py\n"
-        "python 08_tokenization_report.py\n"
+        "UC_TOKENIZER_DIR=/path/to/SinLlama_merged_bf16 python -m pipeline.tokenization.tokenize_splits\n"
+        "python -m pipeline.tokenization.tokenization_report\n"
         "```\n"
     )
 

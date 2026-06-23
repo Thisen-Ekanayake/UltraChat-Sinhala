@@ -21,9 +21,9 @@ from __future__ import annotations
 import sys
 from collections import Counter
 
-import config
-from detectors import DETECTORS, RATIONALE, SEVERITY
-from uc_common import (
+from pipeline import config
+from pipeline.detectors import DETECTORS, RATIONALE, SEVERITY
+from pipeline.common import (
     StepTimer, fmt_int, get_logger, iter_messages, iter_split_records,
     load_result, require_splits, save_result,
 )

@@ -15,8 +15,8 @@ from __future__ import annotations
 import sys
 import time
 
-import config
-from uc_common import fmt_int, get_logger, load_result, result_path
+from pipeline import config
+from pipeline.common import fmt_int, get_logger, load_result, result_path
 
 log = get_logger("report")
 REPORT = "ANALYSIS_REPORT.md"
@@ -328,12 +328,12 @@ def sec_repro() -> str:
     body = h(2, "9. Reproducibility")
     body += (
         "```\n"
-        "bash run_all.sh            # download + all stages + this report\n"
-        "bash run_all.sh --skip-download   # reuse existing UC_DATA_DIR\n"
+        "bash scripts/run_analysis.sh            # download + all stages + this report\n"
+        "bash scripts/run_analysis.sh --skip-download   # reuse existing UC_DATA_DIR\n"
         "```\n\n"
         f"Intermediate JSON artifacts and this report are written to "
         f"`{config.RESULTS_DIR}`. Stage scripts are independently runnable for "
-        "debugging (`python 0X_*.py`).\n"
+        "debugging (`python -m pipeline.analysis.<stage>`).\n"
     )
     return body
 

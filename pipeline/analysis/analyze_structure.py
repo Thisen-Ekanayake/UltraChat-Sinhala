@@ -21,8 +21,8 @@ from __future__ import annotations
 import sys
 from collections import Counter
 
-import config
-from uc_common import (
+from pipeline import config
+from pipeline.common import (
     LengthAccumulator, StepTimer, fmt_int, get_logger,
     iter_messages, iter_split_records, require_splits, save_result,
 )

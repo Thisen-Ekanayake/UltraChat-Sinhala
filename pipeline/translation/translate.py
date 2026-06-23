@@ -23,17 +23,19 @@ Subcommands
   estimate  print the SFT / GEN run-time projection for given chars/sec rates
             (no model load — pure arithmetic)
 
+Run from the repo root as a module (or via scripts/run_translate.sh).
+
 Examples
 --------
   # how long would the full SFT / GEN splits take at assorted CPU throughputs?
-  python 09_translate.py estimate --chars-per-sec 150 300 600 1000
+  python -m pipeline.translation.translate estimate --chars-per-sec 150 300 600 1000
 
   # measure real throughput on this box (downloads NLLB-3.3B on first use):
-  python 09_translate.py bench --split test_sft --n 50
-  UC_DEVICE=cpu UC_CPU_THREADS=4 python 09_translate.py bench --n 50   # mimic the 4-vCPU VM
+  python -m pipeline.translation.translate bench --split test_sft --n 50
+  UC_DEVICE=cpu UC_CPU_THREADS=4 python -m pipeline.translation.translate bench --n 50
 
   # translate the locally-present test splits:
-  python 09_translate.py run --splits test_sft test_gen
+  python -m pipeline.translation.translate run --splits test_sft test_gen
 
 Config knobs (env): UC_NLLB_MODEL, UC_DEVICE, UC_DTYPE, UC_CPU_THREADS,
 UC_TRANSLATE_BATCH, UC_NUM_BEAMS, UC_OUTPUT_DIR, UC_MASK — see config.py.
@@ -47,9 +49,9 @@ import sys
 import time
 from pathlib import Path
 
-import config
-from mt_preprocess import from_segments, protect, restore, to_segments
-from uc_common import (
+from pipeline import config
+from pipeline.translation.mt_preprocess import from_segments, protect, restore, to_segments
+from pipeline.common import (
     StepTimer, fmt_int, get_logger, iter_messages, iter_split_records,
     require_splits,
 )
@@ -117,7 +119,7 @@ def ensure_splits(requested: list[str], present: dict, do_download: bool) -> dic
                     ", ".join(missing))
         return present
 
-    dl = importlib.import_module("00_download_dataset")  # leading-digit module
+    dl = importlib.import_module("pipeline.analysis.download_dataset")
     from huggingface_hub import snapshot_download
 
     allow = dl.build_allow_patterns(missing)
@@ -475,7 +477,7 @@ def main() -> int:
         list(config.EXPECTED_SPLITS) if args.download else config.ordered_splits())
     if not targets:
         log.error("Nothing to translate. Use --download, pass --splits, or run "
-                  "00_download_dataset.py first.")
+                  "`python -m pipeline.analysis.download_dataset` first.")
         return 2
 
     present = config.discover_splits()

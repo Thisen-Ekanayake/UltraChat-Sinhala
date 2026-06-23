@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
 #
-# run_all.sh — orchestrate the UltraChat 200k analysis pipeline end-to-end.
+# run_analysis.sh — orchestrate the UltraChat 200k analysis pipeline end-to-end.
 #
-# Runs each stage in order, timing each, and writes the final academic report to
+# Runs each analysis stage in order (as `python -m pipeline.analysis.<stage>`),
+# timing each, and writes the final academic report to
 # $UC_RESULTS_DIR/ANALYSIS_REPORT.md. Any stage failure aborts the run.
 #
-# Usage:
-#   bash run_all.sh                  # install deps, download, analyse, report
-#   bash run_all.sh --skip-download  # reuse parquet shards already in UC_DATA_DIR
-#   bash run_all.sh --skip-install   # do not pip install (deps already present)
-#   bash run_all.sh --venv           # isolate deps in ./.venv (recommended on VMs)
-#   bash run_all.sh --splits "train_sft test_sft"   # download a subset only
+# Usage (run from anywhere; the script cd's to the repo root):
+#   bash scripts/run_analysis.sh                  # install deps, download, analyse, report
+#   bash scripts/run_analysis.sh --skip-download  # reuse parquet shards already in UC_DATA_DIR
+#   bash scripts/run_analysis.sh --skip-install   # do not pip install (deps already present)
+#   bash scripts/run_analysis.sh --venv           # isolate deps in ./.venv (recommended on VMs)
+#   bash scripts/run_analysis.sh --splits "train_sft test_sft"   # download a subset only
 #
 # Dependency install is robust to PEP 668 "externally-managed-environment"
 # (common on Debian/Ubuntu GCP VMs): it tries a plain install, then falls back
 # to --user, then --break-system-packages. Use --venv to sidestep this entirely.
 #
-# Environment overrides (see config.py):
+# Environment overrides (see pipeline/config.py):
 #   UC_DATA_DIR, UC_RESULTS_DIR, UC_HF_REPO
 #
 set -euo pipefail
 
-# --- locate ourselves so the script is runnable from any CWD ----------------
+# --- locate the repo root (parent of this scripts/ dir) so `python -m` and
+#     relative paths resolve regardless of the caller's CWD --------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
 
 PY="${PYTHON:-python3}"
 SKIP_DOWNLOAD=0
@@ -42,7 +45,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-RESULTS_DIR="${UC_RESULTS_DIR:-$SCRIPT_DIR/results}"
+RESULTS_DIR="${UC_RESULTS_DIR:-$ROOT_DIR/results}"
 LOG_FILE="$RESULTS_DIR/run_$(date +%Y%m%d_%H%M%S).log"
 mkdir -p "$RESULTS_DIR"
 
@@ -60,7 +63,7 @@ run_stage() {
 }
 
 log "Pipeline start — $(date)"
-log "SCRIPT_DIR=$SCRIPT_DIR  RESULTS_DIR=$RESULTS_DIR  PYTHON=$PY"
+log "ROOT_DIR=$ROOT_DIR  RESULTS_DIR=$RESULTS_DIR  PYTHON=$PY"
 
 # Install requirements, tolerating PEP 668 externally-managed environments.
 # Returns non-zero only if every strategy fails.
@@ -78,10 +81,10 @@ install_deps() {
 
 # --- 0. dependencies --------------------------------------------------------
 if [[ "$USE_VENV" -eq 1 ]]; then
-  if [[ ! -d "$SCRIPT_DIR/.venv" ]]; then
-    run_stage "Creating virtualenv (.venv)" "$PY" -m venv "$SCRIPT_DIR/.venv"
+  if [[ ! -d "$ROOT_DIR/.venv" ]]; then
+    run_stage "Creating virtualenv (.venv)" "$PY" -m venv "$ROOT_DIR/.venv"
   fi
-  PY="$SCRIPT_DIR/.venv/bin/python"
+  PY="$ROOT_DIR/.venv/bin/python"
   log "Using virtualenv interpreter: $PY"
 fi
 
@@ -102,24 +105,24 @@ if [[ "$SKIP_DOWNLOAD" -eq 0 ]]; then
   if [[ -n "$DOWNLOAD_SPLITS" ]]; then
     # shellcheck disable=SC2086
     run_stage "Stage 0: download dataset (splits: $DOWNLOAD_SPLITS)" \
-      "$PY" 00_download_dataset.py --splits $DOWNLOAD_SPLITS
+      "$PY" -m pipeline.analysis.download_dataset --splits $DOWNLOAD_SPLITS
   else
     run_stage "Stage 0: download dataset (all splits)" \
-      "$PY" 00_download_dataset.py
+      "$PY" -m pipeline.analysis.download_dataset
   fi
 else
   log "Skipping download (--skip-download); using existing UC_DATA_DIR"
 fi
 
 # --- 2. analysis stages -----------------------------------------------------
-run_stage "Stage 1: structure"          "$PY" 01_analyze_structure.py
-run_stage "Stage 2: text volume + cost" "$PY" 02_analyze_text_stats.py
-run_stage "Stage 3: content features"   "$PY" 03_analyze_content_features.py
-run_stage "Stage 4: unicode / scripts"  "$PY" 04_analyze_unicode_scripts.py
-run_stage "Stage 5: translation risks"  "$PY" 05_analyze_translation_risks.py
+run_stage "Stage 1: structure"          "$PY" -m pipeline.analysis.analyze_structure
+run_stage "Stage 2: text volume + cost" "$PY" -m pipeline.analysis.analyze_text_stats
+run_stage "Stage 3: content features"   "$PY" -m pipeline.analysis.analyze_content_features
+run_stage "Stage 4: unicode / scripts"  "$PY" -m pipeline.analysis.analyze_unicode_scripts
+run_stage "Stage 5: translation risks"  "$PY" -m pipeline.analysis.analyze_translation_risks
 
 # --- 3. report --------------------------------------------------------------
-run_stage "Stage 6: aggregate report"   "$PY" 06_aggregate_report.py
+run_stage "Stage 6: aggregate report"   "$PY" -m pipeline.analysis.aggregate_report
 
 log "Pipeline complete."
 log "Report:  $RESULTS_DIR/ANALYSIS_REPORT.md"

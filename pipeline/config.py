@@ -19,8 +19,10 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-# Scripts, data/ and results/ all live under this directory (the repo root).
-ROOT_DIR = Path(__file__).resolve().parent
+# This module lives at <repo>/pipeline/config.py; data/, results/ and the model
+# directory live at the repo root, one level up from the package.
+PACKAGE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = PACKAGE_DIR.parent
 
 DATA_DIR = Path(os.environ.get("UC_DATA_DIR", ROOT_DIR / "data")).resolve()
 RESULTS_DIR = Path(os.environ.get("UC_RESULTS_DIR", ROOT_DIR / "results")).resolve()

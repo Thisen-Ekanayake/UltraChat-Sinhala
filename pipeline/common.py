@@ -27,7 +27,7 @@ from typing import Any
 import numpy as np
 import pyarrow.parquet as pq
 
-import config
+from pipeline import config
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -139,7 +139,8 @@ def require_splits(logger: logging.Logger) -> dict[str, list[Path]]:
     splits = config.discover_splits()
     if not splits:
         logger.error(
-            "No parquet shards found under %s. Run 00_download_dataset.py first "
+            "No parquet shards found under %s. Run "
+            "`python -m pipeline.analysis.download_dataset` first "
             "or set UC_DATA_DIR.", config.DATA_DIR,
         )
         sys.exit(2)
