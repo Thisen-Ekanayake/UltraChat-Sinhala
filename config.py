@@ -35,8 +35,32 @@ HF_REPO_TYPE = "dataset"
 # only used to order/label output and warn about missing splits.
 EXPECTED_SPLITS = ["train_sft", "test_sft", "train_gen", "test_gen"]
 
-# The two splits relevant to the downstream Sinhala SFT translation effort.
+# Split groups. The Sinhala translation effort targets SFT; GEN is kept for
+# the tokenisation analysis (stage 7), which reports the two groups separately.
 SFT_SPLITS = ["train_sft", "test_sft"]
+GEN_SPLITS = ["train_gen", "test_gen"]
+SPLIT_GROUPS = {"sft": SFT_SPLITS, "gen": GEN_SPLITS}
+
+
+def split_group(split: str) -> str:
+    """Return 'sft', 'gen' or 'other' for a split name."""
+    for group, members in SPLIT_GROUPS.items():
+        if split in members:
+            return group
+    return "other"
+
+
+# ---------------------------------------------------------------------------
+# Tokeniser (stage 7) — SinLlama merged model directory (HF format).
+# Override on the VM with UC_TOKENIZER_DIR=/path/to/SinLlama_merged_bf16
+# ---------------------------------------------------------------------------
+TOKENIZER_DIR = Path(
+    os.environ.get("UC_TOKENIZER_DIR", ROOT_DIR / "SinLlama_merged_bf16")
+).resolve()
+
+# Context-window thresholds (in tokens) to flag dialogues against, for SFT
+# training budgeting. A full dialogue is one training sample.
+CONTEXT_WINDOWS = [2048, 4096, 8192]
 
 # ---------------------------------------------------------------------------
 # Cost model constants (for the translation-cost section of the report)
@@ -92,10 +116,11 @@ def ordered_splits(data_dir: Path | None = None) -> list[str]:
 
 
 if __name__ == "__main__":
-    print(f"ROOT_DIR    = {ROOT_DIR}")
-    print(f"DATA_DIR    = {DATA_DIR}")
-    print(f"RESULTS_DIR = {RESULTS_DIR}")
-    print(f"HF_REPO     = {HF_REPO}")
+    print(f"ROOT_DIR      = {ROOT_DIR}")
+    print(f"DATA_DIR      = {DATA_DIR}")
+    print(f"RESULTS_DIR   = {RESULTS_DIR}")
+    print(f"TOKENIZER_DIR = {TOKENIZER_DIR} (exists={TOKENIZER_DIR.exists()})")
+    print(f"HF_REPO       = {HF_REPO}")
     print("Discovered splits:")
     for split, shards in discover_splits().items():
         total = sum(p.stat().st_size for p in shards)
