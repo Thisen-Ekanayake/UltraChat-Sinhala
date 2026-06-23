@@ -54,6 +54,11 @@ from uc_common import (
     require_splits,
 )
 
+try:
+    from tqdm import tqdm as _tqdm
+except ImportError:
+    _tqdm = None
+
 log = get_logger("translate")
 
 
@@ -181,7 +186,12 @@ class NllbTranslator:
 
     def __init__(self) -> None:
         import torch
+        import transformers
         from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+        # Quiet the repeated per-batch generation warnings; we configure
+        # generation explicitly below so they carry no information.
+        transformers.logging.set_verbosity_error()
 
         self.torch = torch
         device, dtype, dtype_name = self._resolve(torch)
@@ -197,6 +207,17 @@ class NllbTranslator:
                 config.NLLB_MODEL, torch_dtype=dtype)
             self.model.to(device).eval()
         self.bos = self.tok.convert_tokens_to_ids(config.TGT_LANG)
+
+        # Bake generation settings into the model's generation_config so every
+        # generate() call is parameter-free. This also removes the model's
+        # default max_length (=200), which otherwise conflicts with
+        # max_new_tokens and prints a warning on every batch.
+        gc = self.model.generation_config
+        gc.forced_bos_token_id = self.bos
+        gc.max_new_tokens = config.MAX_NEW_TOKENS
+        gc.max_length = None
+        gc.num_beams = config.NUM_BEAMS
+
         threads = torch.get_num_threads() if device == "cpu" else None
         log.info("Translator ready: %s -> %s, batch=%d, beams=%d%s",
                  config.SRC_LANG, config.TGT_LANG, config.TRANSLATE_BATCH,
@@ -215,22 +236,25 @@ class NllbTranslator:
             name = "fp16" if device == "cuda" else "bf16"
         return device, dtypes[name], name
 
-    def translate_many(self, texts: list[str]) -> list[str]:
+    def translate_many(self, texts: list[str], desc: str | None = None) -> list[str]:
         if not texts:
             return []
         out: list[str] = []
         bs = config.TRANSLATE_BATCH
+        bar = _tqdm(total=len(texts), unit="seg", desc=desc, leave=False) \
+            if desc and _tqdm else None
         with self.torch.inference_mode():
             for i in range(0, len(texts), bs):
                 batch = texts[i:i + bs]
                 enc = self.tok(batch, return_tensors="pt", padding=True,
                                truncation=True, max_length=config.MAX_INPUT_TOKENS)
                 enc = {k: v.to(self.device) for k, v in enc.items()}
-                gen = self.model.generate(
-                    **enc, forced_bos_token_id=self.bos,
-                    max_new_tokens=config.MAX_NEW_TOKENS,
-                    num_beams=config.NUM_BEAMS)
+                gen = self.model.generate(**enc)
                 out.extend(self.tok.batch_decode(gen, skip_special_tokens=True))
+                if bar:
+                    bar.update(len(batch))
+        if bar:
+            bar.close()
         return out
 
     def warmup(self) -> None:
@@ -268,7 +292,8 @@ def _preprocess_record(rec: dict, mask: bool) -> dict:
     }
 
 
-def translate_records(records: list[dict], tr: NllbTranslator, mask: bool) -> list[dict]:
+def translate_records(records: list[dict], tr: NllbTranslator, mask: bool,
+                      desc: str | None = None) -> list[dict]:
     """Translate a chunk of dialogues, batching every segment across them."""
     prepped = [_preprocess_record(r, mask) for r in records]
 
@@ -280,7 +305,7 @@ def translate_records(records: list[dict], tr: NllbTranslator, mask: bool) -> li
         if pr["prompt_prep"]:
             flat.extend(pr["prompt_prep"]["segments"])
 
-    translated = tr.translate_many(flat)
+    translated = tr.translate_many(flat, desc=desc)
 
     # Scatter the translations back in the exact order they were flattened.
     out: list[dict] = []
@@ -325,7 +350,7 @@ def run_split(split, shards, tr, mask, job: JobProgress, limit=None) -> None:
         nonlocal written, chars
         if not buf:
             return
-        outs = translate_records(buf, tr, mask)
+        outs = translate_records(buf, tr, mask, desc=f"{split} segs")
         flush_chars = 0
         with open(path, "a", encoding="utf-8") as fh:
             for src, dst in zip(buf, outs):

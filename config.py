@@ -101,7 +101,7 @@ CPU_THREADS = int(os.environ.get("UC_CPU_THREADS", "0"))
 # Batching / length limits. NLLB's positional limit is 512 tokens; long messages
 # are sentence-segmented (see mt_preprocess) so each segment fits.
 TRANSLATE_BATCH = int(os.environ.get("UC_TRANSLATE_BATCH", "16"))   # segments per fwd pass
-DIALOGUE_CHUNK = int(os.environ.get("UC_DIALOGUE_CHUNK", "64"))     # dialogues buffered before a flush
+DIALOGUE_CHUNK = int(os.environ.get("UC_DIALOGUE_CHUNK", "32"))     # dialogues buffered before a flush/checkpoint
 NUM_BEAMS = int(os.environ.get("UC_NUM_BEAMS", "1"))               # 1 = greedy (fastest)
 MAX_INPUT_TOKENS = int(os.environ.get("UC_MAX_INPUT_TOKENS", "512"))
 MAX_NEW_TOKENS = int(os.environ.get("UC_MAX_NEW_TOKENS", "512"))
