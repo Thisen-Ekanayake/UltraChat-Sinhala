@@ -110,12 +110,22 @@ _SENT_SPLIT = re.compile(r"(?<=[.!?。！？])\s+")
 
 
 def _nltk_splitter():
-    """Return an nltk sentence splitter if the punkt model is available."""
+    """Return an nltk sentence splitter if a punkt model is available.
+
+    nltk >= 3.9 ships the tokenizer as ``punkt_tab``; older versions as
+    ``punkt``. Accept either; fall back to the regex splitter if neither is
+    installed (segmentation still works, just more coarsely).
+    """
     try:
         import nltk
         from nltk.tokenize import sent_tokenize
-        nltk.data.find("tokenizers/punkt")
-        return sent_tokenize
+        for res in ("tokenizers/punkt_tab", "tokenizers/punkt"):
+            try:
+                nltk.data.find(res)
+                return sent_tokenize
+            except LookupError:
+                continue
+        return None
     except Exception:
         return None
 

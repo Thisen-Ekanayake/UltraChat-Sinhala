@@ -100,6 +100,30 @@ def record_src_chars(rec) -> int:
     return sum(len(m["content"]) for m in iter_messages(rec))
 
 
+# Per-part totals: the named SFT/GEN splits have built-in constants; arbitrary
+# parts (part_NN) get their totals from parts_manifest.json in the data dir.
+def _load_part_manifest() -> dict:
+    try:
+        data = json.loads((config.DATA_DIR / "parts_manifest.json")
+                          .read_text(encoding="utf-8"))
+        return data.get("per_part", {})
+    except Exception:
+        return {}
+
+
+_PART_MANIFEST = _load_part_manifest()
+
+
+def split_chars(split: str) -> int:
+    return (config.SPLIT_TOTAL_CHARS.get(split)
+            or _PART_MANIFEST.get(split, {}).get("chars", 0))
+
+
+def split_dialogues(split: str) -> int:
+    return (config.SPLIT_NUM_DIALOGUES.get(split)
+            or _PART_MANIFEST.get(split, {}).get("dialogues", 0))
+
+
 # ---------------------------------------------------------------------------
 # Dataset acquisition (reuses stage 0's HuggingFace download logic)
 # ---------------------------------------------------------------------------
@@ -146,13 +170,13 @@ class JobProgress:
 
     def __init__(self, targets: list[str]) -> None:
         self.t0 = time.time()
-        self.total_chars = sum(config.SPLIT_TOTAL_CHARS.get(s, 0) for s in targets)
+        self.total_chars = sum(split_chars(s) for s in targets)
         self.resumed_chars = 0.0
         self.run_chars = 0
 
     def add_resumed(self, split: str, done_count: int) -> None:
-        nd = config.SPLIT_NUM_DIALOGUES.get(split, 0)
-        tc = config.SPLIT_TOTAL_CHARS.get(split, 0)
+        nd = split_dialogues(split)
+        tc = split_chars(split)
         if nd and done_count:
             self.resumed_chars += min(done_count / nd, 1.0) * tc
 
@@ -205,8 +229,13 @@ class NllbTranslator:
         with StepTimer(log, f"load {config.NLLB_MODEL} -> {device}/{dtype_name}"):
             self.tok = AutoTokenizer.from_pretrained(
                 config.NLLB_MODEL, src_lang=config.SRC_LANG)
-            self.model = AutoModelForSeq2SeqLM.from_pretrained(
-                config.NLLB_MODEL, torch_dtype=dtype)
+            # transformers >=5 renamed torch_dtype -> dtype; support both.
+            try:
+                self.model = AutoModelForSeq2SeqLM.from_pretrained(
+                    config.NLLB_MODEL, dtype=dtype)
+            except TypeError:
+                self.model = AutoModelForSeq2SeqLM.from_pretrained(
+                    config.NLLB_MODEL, torch_dtype=dtype)
             self.model.to(device).eval()
         self.bos = self.tok.convert_tokens_to_ids(config.TGT_LANG)
 
@@ -220,10 +249,18 @@ class NllbTranslator:
         gc.max_length = None
         gc.num_beams = config.NUM_BEAMS
 
+        # NLLB's positional limit is 512 tokens. Segments are char-bounded
+        # upstream, but we additionally *guarantee* the limit here (no silent
+        # truncation): any segment over the budget is split at token boundaries.
+        self.max_in = config.MAX_INPUT_TOKENS
+        # A segment shorter than this many chars cannot exceed max_in tokens
+        # (assumes >= 2 chars/token), so the length check is skipped for it.
+        self._safe_chars = self.max_in * 2
+
         threads = torch.get_num_threads() if device == "cpu" else None
-        log.info("Translator ready: %s -> %s, batch=%d, beams=%d%s",
+        log.info("Translator ready: %s -> %s, batch=%d, beams=%d, max_in=%d%s",
                  config.SRC_LANG, config.TGT_LANG, config.TRANSLATE_BATCH,
-                 config.NUM_BEAMS,
+                 config.NUM_BEAMS, self.max_in,
                  f", cpu_threads={threads}" if threads else "")
 
     @staticmethod
@@ -238,29 +275,81 @@ class NllbTranslator:
             name = "fp16" if device == "cuda" else "bf16"
         return device, dtypes[name], name
 
+    def _fit_tokens(self, text: str) -> list[str]:
+        """Split ``text`` so each piece is <= max_in tokens (NLLB's 512 limit).
+
+        Cheap by design: a text below ``_safe_chars`` cannot exceed the budget,
+        so it is returned untouched without tokenising. Only genuinely long
+        segments are tokenised and cut at token boundaries (via offset mapping,
+        with a proportional char-split fallback for slow tokenisers).
+        """
+        if len(text) <= self._safe_chars:
+            return [text]
+        try:
+            enc = self.tok(text, add_special_tokens=True,
+                           return_offsets_mapping=True)
+            ids = enc["input_ids"]
+            if len(ids) <= self.max_in:
+                return [text]
+            budget = self.max_in - 2          # reserve src-lang + eos per piece
+            spans = [sp for sp in enc["offset_mapping"] if sp[1] > sp[0]]
+            pieces, start, cnt = [], spans[0][0], 0
+            for _s, e in spans:
+                cnt += 1
+                if cnt >= budget:
+                    pieces.append(text[start:e])
+                    start, cnt = e, 0
+            if start < len(text):
+                pieces.append(text[start:])
+            return [p for p in pieces if p.strip()] or [text]
+        except Exception:                     # slow tokenizer / no offsets
+            approx = self._safe_chars
+            return [text[i:i + approx] for i in range(0, len(text), approx)]
+
     def translate_many(self, texts: list[str], desc: str | None = None) -> list[str]:
         if not texts:
             return []
-        out: list[str] = []
+        # 1. Enforce the 512-token limit: expand any over-long segment into
+        #    sub-pieces, remembering which original text each piece belongs to.
+        pieces: list[str] = []
+        parent: list[int] = []
+        for i, t in enumerate(texts):
+            for sub in self._fit_tokens(t):
+                pieces.append(sub)
+                parent.append(i)
+
+        # 2. Length-bucketed batching: sort by length so each batch pads to a
+        #    similar size. On a big GPU this is the dominant throughput win —
+        #    padding short and long segments together wastes most of the compute.
+        order = sorted(range(len(pieces)), key=lambda k: len(pieces[k]))
+        out: list[str | None] = [None] * len(pieces)
         bs = config.TRANSLATE_BATCH
-        bar = _tqdm(total=len(texts), unit="seg", desc=desc, leave=False) \
+        bar = _tqdm(total=len(pieces), unit="seg", desc=desc, leave=False) \
             if desc and _tqdm else None
         with self.torch.inference_mode():
-            for i in range(0, len(texts), bs):
-                batch = texts[i:i + bs]
+            for b in range(0, len(order), bs):
+                idxs = order[b:b + bs]
+                batch = [pieces[k] for k in idxs]
                 enc = self.tok(batch, return_tensors="pt", padding=True,
-                               truncation=True, max_length=config.MAX_INPUT_TOKENS)
+                               truncation=True, max_length=self.max_in)
                 enc = {k: v.to(self.device) for k, v in enc.items()}
                 gen = self.model.generate(**enc)
-                out.extend(self.tok.batch_decode(gen, skip_special_tokens=True))
+                dec = self.tok.batch_decode(gen, skip_special_tokens=True)
+                for k, d in zip(idxs, dec):
+                    out[k] = d
                 if bar:
-                    bar.update(len(batch))
+                    bar.update(len(idxs))
         if bar:
             bar.close()
-        return out
+
+        # 3. Reassemble: stitch sub-pieces back per original text, in order.
+        results: list[list[str]] = [[] for _ in texts]
+        for p_idx, par in enumerate(parent):
+            results[par].append(out[p_idx] or "")
+        return [" ".join(r) for r in results]
 
     def warmup(self) -> None:
-        """First call pays lazy CUDA/oneDNN init; do it off the clock."""
+        """First call pays lazy GPU/oneDNN init; do it off the clock."""
         self.translate_many(["Hello.", "This is a warmup sentence."])
 
 
@@ -362,7 +451,7 @@ def run_split(split, shards, tr, mask, job: JobProgress, limit=None) -> None:
         written += len(buf)
         job.add(flush_chars)
         log.info("  %s: %s/%s dialogues | %s", split, fmt_int(written),
-                 fmt_int(config.SPLIT_NUM_DIALOGUES.get(split, written)), job.line())
+                 fmt_int(split_dialogues(split) or written), job.line())
         buf.clear()
 
     for rec in iter_split_records(split, shards):

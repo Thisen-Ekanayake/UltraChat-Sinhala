@@ -117,13 +117,40 @@ Knobs (env, see `pipeline/config.py`): `UC_NLLB_MODEL`, `UC_DEVICE`
 (auto|cuda|cpu), `UC_DTYPE` (auto|fp32|fp16|bf16), `UC_CPU_THREADS`,
 `UC_TRANSLATE_BATCH`, `UC_NUM_BEAMS`, `UC_OUTPUT_DIR`, `UC_MASK`.
 
-**Timing note (4-vCPU CPU VM).** NLLB-3.3B is memory-bound and slow on CPU.
-Realistic throughput is ~150–400 src-char/s with vanilla transformers (bf16,
-AMX) and ~500–1200 src-char/s with the optional CTranslate2 int8 path. That puts
-the **full SFT** split (1.31 B chars) at **~3 weeks (int8) to ~2 months
-(vanilla)** and **GEN** (1.21 B chars) at roughly the same; even the local
-`test_*` slices are ~2–6 days each. Use this VM to validate the pipeline on a
-few hundred dialogues (`--limit`), and run the full corpus on a GPU.
+Knobs that also apply: `UC_TRANSLATE_BATCH`, `UC_DIALOGUE_CHUNK`,
+`UC_MAX_SEGMENT_CHARS`, `UC_MAX_INPUT_TOKENS`. The translator **guarantees**
+NLLB's 512-token limit (over-long segments are split at token boundaries, never
+truncated) and **length-buckets** segments before batching, which is the main
+throughput lever on a GPU.
+
+### Sharded GPU translation (AMD MI300X / ROCm)
+
+For a big GPU, split the SFT corpus into N balanced parts and run a resumable
+job per part (parts mix train+test to balance size; `prompt_id` is preserved so
+train/test membership is recoverable):
+
+```bash
+# one-time setup on the pod (creates .venv with ROCm torch + deps)
+ROCM_INDEX=https://download.pytorch.org/whl/rocm6.3 bash scripts/setup_pod_rocm.sh
+source .venv/bin/activate
+
+python -m pipeline.analysis.download_dataset --splits train_sft test_sft
+python -m pipeline.translation.split_dataset --parts 10        # -> data/parts/part_01..10.parquet + manifest
+
+# one part (writes data/translated_part_01/part_01.sinhala.jsonl, resumable):
+bash scripts/run_translate_mi300x.sh part_01
+# …or launch all parts in parallel (one tmux window each), capped concurrency:
+PARTS=10 CONCURRENCY=4 bash scripts/run_all_parts_mi300x.sh
+```
+
+ROCm exposes the GPU through torch's CUDA API, so `UC_DEVICE=cuda` is correct;
+the MI300X runs `bf16` natively. Each job's per-part wall-clock is the final
+`DONE … in <time>` / `total job time` line in `results/translate_part_NN_*.log`.
+
+**Timing note (4-vCPU CPU VM).** NLLB-3.3B is memory-bound and slow on CPU
+(~150–400 src-char/s; full SFT ≈ weeks), which is why translation runs on the
+MI300X. Use the CPU VM only to validate the pipeline on a few hundred dialogues
+(`--limit`).
 
 ## Configuration (environment variables, see `pipeline/config.py`)
 
