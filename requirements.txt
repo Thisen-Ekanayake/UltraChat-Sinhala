@@ -1,0 +1,7 @@
+# UltraChat 200k analysis pipeline dependencies.
+# Pinned to >= the versions validated during development.
+huggingface_hub>=0.23
+pyarrow>=15
+numpy>=1.26
+regex>=2024.0          # Unicode \p{Script=...} support (stage 4)
+tiktoken>=0.6          # optional: exact token counts (stage 2 falls back if absent)
