@@ -36,9 +36,15 @@ Run a single stage directly, e.g. `python 03_analyze_content_features.py`.
 because it needs the SinLlama model directory, supplied separately on the VM:
 
 ```bash
+pip install tokenizers                    # lightweight; sufficient for counting
+#   PEP 668 VM: pip install --user tokenizers  (or --break-system-packages)
 UC_TOKENIZER_DIR=/path/to/SinLlama_merged_bf16 python 07_tokenize_splits.py
-pip install transformers tokenizers      # stage-7 dependencies
 ```
+
+Stage 7 loads the tokenizer from `tokenizer.json` via the lightweight
+`tokenizers` package and needs no `transformers`/`torch`. If `transformers` is
+present it is used (and gives identical counts); otherwise the `tokenizers`
+fallback is used automatically.
 
 ## Configuration (environment variables, see `config.py`)
 

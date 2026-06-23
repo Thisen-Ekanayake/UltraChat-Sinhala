@@ -58,34 +58,58 @@ def load_tokenizer():
         sys.exit(2)
 
     # Preferred: HuggingFace fast tokenizer (honours tokenizer_config.json).
+    # local_files_only=True forbids any Hub/network lookup — the model is always
+    # local here, and this avoids the confusing "Repo id must be in the form …"
+    # error transformers raises when it mistakes a local path for a repo id.
     try:
         from transformers import AutoTokenizer
+    except ImportError:
+        AutoTokenizer = None
 
-        tok = AutoTokenizer.from_pretrained(str(tdir), use_fast=True)
+    if AutoTokenizer is not None:
+        try:
+            tok = AutoTokenizer.from_pretrained(
+                str(tdir), use_fast=True, local_files_only=True)
 
-        def encode_batch(texts: list[str]) -> list[int]:
-            enc = tok(texts, add_special_tokens=False)["input_ids"]
-            return [len(ids) for ids in enc]
+            def encode_batch(texts: list[str]) -> list[int]:
+                enc = tok(texts, add_special_tokens=False)["input_ids"]
+                return [len(ids) for ids in enc]
 
-        # len(tok) includes added tokens (the Sinhala extension); tok.vocab_size
-        # reports only the base vocab and would undercount.
-        full_vocab = len(tok)
-        meta = {
-            "backend": "transformers.AutoTokenizer",
-            "vocab_size": full_vocab,
-            "base_vocab_size": tok.vocab_size,
-            "tokenizer_dir": str(tdir),
-        }
-        log.info("Loaded transformers tokenizer (vocab=%s, base=%s) from %s",
-                 fmt_int(full_vocab), fmt_int(tok.vocab_size), tdir)
-        return encode_batch, meta
-    except Exception as exc:
-        log.warning("AutoTokenizer failed (%s); falling back to `tokenizers`.", exc)
+            # len(tok) includes added tokens (the Sinhala extension);
+            # tok.vocab_size reports only the base vocab and would undercount.
+            full_vocab = len(tok)
+            meta = {
+                "backend": "transformers.AutoTokenizer",
+                "vocab_size": full_vocab,
+                "base_vocab_size": tok.vocab_size,
+                "tokenizer_dir": str(tdir),
+            }
+            log.info("Loaded transformers tokenizer (vocab=%s, base=%s) from %s",
+                     fmt_int(full_vocab), fmt_int(tok.vocab_size), tdir)
+            return encode_batch, meta
+        except Exception as exc:
+            log.warning("transformers load failed (%s); trying `tokenizers`.", exc)
 
-    # Fallback: raw Rust tokenizer from tokenizer.json.
-    from tokenizers import Tokenizer
+    # Fallback: lightweight Rust tokenizer straight from tokenizer.json. This is
+    # sufficient for counting and needs no transformers/torch install.
+    try:
+        from tokenizers import Tokenizer
+    except ImportError:
+        log.error(
+            "No tokenizer backend available (neither `transformers` nor "
+            "`tokenizers` is installed).\n"
+            "Install the lightweight backend (enough for token counting):\n"
+            "    pip install tokenizers\n"
+            "On an externally-managed VM (PEP 668), use one of:\n"
+            "    pip install --user tokenizers\n"
+            "    pip install --break-system-packages tokenizers"
+        )
+        sys.exit(3)
 
     tjson = tdir / "tokenizer.json"
+    if not tjson.is_file():
+        log.error("tokenizer.json not found in %s", tdir)
+        sys.exit(3)
     tok = Tokenizer.from_file(str(tjson))
 
     def encode_batch(texts: list[str]) -> list[int]:

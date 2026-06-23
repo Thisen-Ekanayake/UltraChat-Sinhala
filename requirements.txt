@@ -7,7 +7,8 @@ regex>=2024.0          # Unicode \p{Script=...} support (stage 4)
 tiktoken>=0.6          # optional: exact token counts (stage 2 falls back if absent)
 
 # Stage 7 only (07_tokenize_splits.py, standalone — not run by run_all.sh).
-# Install separately on the VM where the SinLlama model lives:
-#   pip install transformers tokenizers
-# transformers>=4.40
+# Lightweight tokenizer backend (sufficient for counting; no transformers/torch).
+# Install on the VM where the SinLlama model lives:
+#   pip install tokenizers        # PEP 668 VM: add --user or --break-system-packages
 # tokenizers>=0.19
+# transformers>=4.40   # optional: used if present, gives identical counts
