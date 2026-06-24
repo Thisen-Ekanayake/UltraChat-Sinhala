@@ -8,6 +8,12 @@ SinLlama_merged_bf16/
 *.tar
 *.zip
 
+# --- Sinhala CPT corpus, tokenizer & translated shards (large/local; supplied separately) ---
+CPT-Dataset.txt
+tokenizer/
+*.jsonl
+*.jsonl.bak
+
 # --- Generated analysis artifacts (reproducible via scripts/run_analysis.sh) ---
 results/
 
