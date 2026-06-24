@@ -51,6 +51,7 @@ from pathlib import Path
 
 from pipeline import config
 from pipeline.translation.mt_preprocess import from_segments, protect, restore, to_segments
+from pipeline.translation.sinhala_normalize import SinhalaZwjNormalizer
 from pipeline.common import (
     StepTimer, fmt_int, get_logger, iter_messages, iter_split_records,
     require_splits,
@@ -257,6 +258,21 @@ class NllbTranslator:
         # (assumes >= 2 chars/token), so the length check is skipped for it.
         self._safe_chars = self.max_in * 2
 
+        # NLLB's SentencePiece normaliser destroys the Sinhala ZWJ at encode
+        # time (see sinhala_normalize), so it is absent from every decoded
+        # string. Restore it on the decoded output so the written data is
+        # correct at the source. Disable with UC_ZWJ_FIX=0; a missing
+        # lexicon/corpus degrades gracefully to a warning (raw NLLB output).
+        self.zwj = None
+        if config.ZWJ_FIX:
+            try:
+                with StepTimer(log, "load Sinhala ZWJ normaliser"):
+                    self.zwj = SinhalaZwjNormalizer.from_config()
+                log.info("ZWJ restoration ON: lexicon=%s types, %d attested clusters",
+                         fmt_int(len(self.zwj.W)), len(self.zwj.clusters))
+            except Exception as exc:
+                log.warning("ZWJ restoration OFF (%s): writing raw NLLB output", exc)
+
         threads = torch.get_num_threads() if device == "cpu" else None
         log.info("Translator ready: %s -> %s, batch=%d, beams=%d, max_in=%d%s",
                  config.SRC_LANG, config.TGT_LANG, config.TRANSLATE_BATCH,
@@ -335,6 +351,8 @@ class NllbTranslator:
                 enc = {k: v.to(self.device) for k, v in enc.items()}
                 gen = self.model.generate(**enc)
                 dec = self.tok.batch_decode(gen, skip_special_tokens=True)
+                if self.zwj is not None:                     # restore stripped ZWJ
+                    dec = [self.zwj.normalize(d) for d in dec]
                 for k, d in zip(idxs, dec):
                     out[k] = d
                 if bar:

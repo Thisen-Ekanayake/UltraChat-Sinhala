@@ -112,6 +112,21 @@ MAX_SEGMENT_CHARS = int(os.environ.get("UC_MAX_SEGMENT_CHARS", "1000"))  # hard 
 # Mask code/URLs/math/markup before translating and restore after (report §8.3).
 MASK_BEFORE_TRANSLATE = os.environ.get("UC_MASK", "1") not in ("0", "false", "False")
 
+# Post-decode Sinhala ZWJ restoration. NLLB's SentencePiece normaliser maps the
+# conjunct joiner (U+0DCA U+200D <C>) to U+0DCA U+0020 <C>, destroying the
+# Zero-Width Joiner at encode time (measured), so NLLB output never contains it.
+# We restore it orthographically on each decoded segment with a lexicon-gated
+# rule. See pipeline/translation/sinhala_normalize.py and docs/sinhala_zwj_repair.md.
+ZWJ_FIX = os.environ.get("UC_ZWJ_FIX", "1") not in ("0", "false", "False")
+ZWJ_CORPUS = Path(
+    os.environ.get("UC_ZWJ_CORPUS", ROOT_DIR / "CPT-Dataset.txt")).resolve()
+ZWJ_VOCAB = Path(
+    os.environ.get("UC_ZWJ_VOCAB",
+                   ROOT_DIR / "tokenizer" / "unigram_32000_0.9995.vocab")).resolve()
+ZWJ_LEXICON_CACHE = Path(
+    os.environ.get("UC_ZWJ_LEXICON_CACHE", DATA_DIR / "sinhala_lexicon.pkl")).resolve()
+ZWJ_MIN_FREQ = int(os.environ.get("UC_ZWJ_MIN_FREQ", "5"))
+
 # Where translated splits are written (one resumable JSONL per split).
 OUTPUT_DIR = Path(
     os.environ.get("UC_OUTPUT_DIR", ROOT_DIR / "data" / "translated")
