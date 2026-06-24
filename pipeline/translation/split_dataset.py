@@ -41,7 +41,8 @@ def _record_chars(row: dict) -> int:
     return sum(len(m["content"]) for m in iter_messages(row))
 
 
-def split_dataset(splits: list[str], parts: int, out_dir: Path) -> dict:
+def split_dataset(splits: list[str], parts: int, out_dir: Path,
+                  name_prefix: str = "part") -> dict:
     discovered = config.discover_splits()
     sources: list[Path] = []
     for s in splits:
@@ -57,7 +58,9 @@ def split_dataset(splits: list[str], parts: int, out_dir: Path) -> dict:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     schema = pq.ParquetFile(sources[0]).schema_arrow
-    names = [f"part_{i + 1:02d}" for i in range(parts)]
+    # Part names carry a dataset prefix (e.g. part_NN for SFT, gen_NN for GEN) so
+    # the parts, outputs, logs and per-prefix concurrency throttle never collide.
+    names = [f"{name_prefix}_{i + 1:02d}" for i in range(parts)]
     writers = [pq.ParquetWriter(out_dir / f"{n}.parquet", schema) for n in names]
     buffers: list[list[dict]] = [[] for _ in range(parts)]
     counts = [0] * parts
@@ -113,9 +116,11 @@ def main() -> int:
                     help="source splits to pool and split (default: SFT).")
     ap.add_argument("--parts", type=int, default=10, help="number of parts (default 10).")
     ap.add_argument("--out", default=str(config.DATA_DIR / "parts"),
-                    help="output directory for part_NN.parquet (default: data/parts).")
+                    help="output directory for <prefix>_NN.parquet (default: data/parts).")
+    ap.add_argument("--name-prefix", default="part",
+                    help="part filename prefix, e.g. 'part' (SFT) or 'gen' (GEN).")
     args = ap.parse_args()
-    split_dataset(args.splits, args.parts, Path(args.out).resolve())
+    split_dataset(args.splits, args.parts, Path(args.out).resolve(), args.name_prefix)
     return 0
 
 

@@ -44,7 +44,16 @@ export UC_MAX_SEGMENT_CHARS="${UC_MAX_SEGMENT_CHARS:-1600}"
 export UC_MAX_INPUT_TOKENS="${UC_MAX_INPUT_TOKENS:-512}"
 export UC_NUM_BEAMS="${UC_NUM_BEAMS:-1}"
 
+# --- Sinhala ZWJ restoration: pin the lexicon cache + vocab to stable repo-root
+#     paths so they resolve regardless of UC_DATA_DIR (which varies per dataset,
+#     e.g. data/parts vs data/parts_gen). NLLB strips the conjunct joiner at
+#     encode time; this restores it on decode (pipeline/translation/sinhala_normalize).
+export UC_ZWJ_LEXICON_CACHE="${UC_ZWJ_LEXICON_CACHE:-$ROOT_DIR/data/sinhala_lexicon.pkl}"
+export UC_ZWJ_VOCAB="${UC_ZWJ_VOCAB:-$ROOT_DIR/tokenizer/unigram_32000_0.9995.vocab}"
+
 # --- I/O: read the part from the parts dir, write to its own output dir -----
+# PART encodes the dataset (part_NN for SFT, gen_NN for GEN), so the output dir
+# and log name are automatically distinct per dataset.
 export UC_DATA_DIR="${UC_DATA_DIR:-$ROOT_DIR/data/parts}"
 export UC_OUTPUT_DIR="${UC_OUTPUT_DIR:-$ROOT_DIR/data/translated_${PART}}"
 

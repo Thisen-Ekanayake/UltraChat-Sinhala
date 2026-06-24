@@ -26,9 +26,14 @@ PY="${PYTHON:-python3}"
 
 PARTS="${PARTS:-10}"
 CONCURRENCY="${CONCURRENCY:-4}"
+# PART_PREFIX selects the dataset: 'part' = SFT (data/parts), 'gen' = GEN
+# (set UC_DATA_DIR=data/parts_gen). The throttle counts only THIS prefix's
+# processes, so a GEN run can coexist with a running SFT run (e.g. 2 + 2).
+PART_PREFIX="${PART_PREFIX:-part}"
 export UC_NLLB_MODEL="${UC_NLLB_MODEL:-facebook/nllb-200-3.3B}"
 export UC_TRANSLATE_BATCH="${UC_TRANSLATE_BATCH:-96}"
 export UC_DIALOGUE_CHUNK="${UC_DIALOGUE_CHUNK:-128}"
+export UC_DATA_DIR="${UC_DATA_DIR:-$ROOT_DIR/data/parts}"
 
 echo "==> Pre-caching $UC_NLLB_MODEL (one-time, so parallel jobs don't race the download)"
 "$PY" - <<'PY'
@@ -40,13 +45,14 @@ AutoModelForSeq2SeqLM.from_pretrained(m)
 print("cached:", m)
 PY
 
-echo "==> Launching $PARTS parts, $CONCURRENCY at a time, batch=$UC_TRANSLATE_BATCH"
+echo "==> Launching $PARTS '${PART_PREFIX}_NN' parts, $CONCURRENCY at a time, batch=$UC_TRANSLATE_BATCH, data=$UC_DATA_DIR"
 for i in $(seq -w 1 "$PARTS"); do
-  # Wait for a free slot (count running translate jobs).
-  while [ "$(pgrep -fc 'translate run')" -ge "$CONCURRENCY" ]; do sleep 10; done
-  echo "  launch part_$i  $(date '+%H:%M:%S')"
-  nohup bash "$SCRIPT_DIR/run_translate_mi300x.sh" "part_$i" >/dev/null 2>&1 &
+  PART="${PART_PREFIX}_$i"
+  # Wait for a free slot — count only running jobs of THIS dataset prefix.
+  while [ "$(pgrep -fc "translate run --splits ${PART_PREFIX}_")" -ge "$CONCURRENCY" ]; do sleep 10; done
+  echo "  launch $PART  $(date '+%H:%M:%S')"
+  nohup bash "$SCRIPT_DIR/run_translate_mi300x.sh" "$PART" >/dev/null 2>&1 &
   sleep 15      # let this job's model load + register before checking the next slot
 done
 wait
-echo "==> All $PARTS parts finished  $(date '+%H:%M:%S')"
+echo "==> All $PARTS '${PART_PREFIX}_NN' parts finished  $(date '+%H:%M:%S')"
