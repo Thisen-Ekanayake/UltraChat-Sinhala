@@ -1,6 +1,6 @@
 # UltraChat-Sinhala — Translation Quality Report
 
-_Generated 2026-06-26 04:30 · `tools/quality_report.py` (full-scan, deterministic)_
+_Generated 2026-06-26 09:57 · `tools/quality_report.py` (full-scan, deterministic)_
 
 This report measures the **translated Sinhala output** of the cleaned dataset (post ZWJ repair) across structural, linguistic, orthographic, and duplication dimensions. All metrics are computed over every record (no sampling).
 
@@ -8,8 +8,8 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 
 | split | records | turns | JSON-invalid | untranslated turns | repetition turns | dup prompt_ids | recs w/ ZWJ |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| SFT (cleaned+masking-fixed) | 230,975 | 1,461,892 | 0.000% | 0.017% | 0.501% | 0.000% | 99.884% |
-| GEN (cleaned+masking-fixed) | 284,336 | 1,510,092 | 0.000% | 0.016% | 0.473% | 0.000% | 99.599% |
+| SFT (cleaned, final) | 230,938 | 1,461,668 | 0.000% | 0.017% | 0.501% | 0.000% | 99.884% |
+| GEN (cleaned, final) | 284,275 | 1,509,787 | 0.000% | 0.016% | 0.473% | 0.000% | 99.599% |
 
 ## Methodology
 
@@ -19,10 +19,10 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 - **Orthography:** ZWJ (U+200D) counts confirm the conjunct repair landed; virama+space+consonant counts are reported for transparency but are dominated by legitimate word boundaries.
 - **Duplication:** exact duplicate `prompt_id`s and exact duplicate concatenated content (md5).
 
-## SFT (cleaned+masking-fixed)
+## SFT (cleaned, final)
 
 - Shards analysed: **10**
-- Records (dialogues): **230,975**  ·  messages (turns): **1,461,892**
+- Records (dialogues): **230,938**  ·  messages (turns): **1,461,668**
 
 ### Structural integrity
 
@@ -30,7 +30,7 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 |---|---:|---:|
 | JSON-invalid lines | 0 | 0.000% |
 | Schema-invalid records | 0 | 0.000% |
-| Empty turns | 37 | 0.003% |
+| Empty turns | 0 | 0.000% |
 | Role-alternation violations | 0 | 0.000% |
 
 ### Language / script (translated text)
@@ -40,14 +40,14 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 | Mean Sinhala-letter share per message | 0.9733 |
 | Median Sinhala-letter share | 1.0000 |
 | 1st-percentile Sinhala share | 0.4594 |
-| Low-Sinhala messages (<50% Sinhala letters) | 16,575 (1.134%) |
+| Low-Sinhala messages (<50% Sinhala letters) | 16,572 (1.134%) |
 | Untranslated messages (0 Sinhala, ≥20 Latin) | 247 (0.017%) |
 
 ### Failure modes
 
 | metric | value |
 |---|---:|
-| Empty turns | 37 (0.003%) |
+| Empty turns | 0 (0.000%) |
 | Degenerate-repetition messages (zlib ratio < 0.18, ≥200 chars) | 7,317 (0.501%) |
 | Median compression ratio (long messages) | 0.307 |
 
@@ -55,10 +55,10 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 
 | metric | value |
 |---|---:|
-| Total ZWJ (U+200D) joiners | 11,489,203 |
-| Records containing ≥1 joiner | 230,707 (99.884%) |
+| Total ZWJ (U+200D) joiners | 11,488,143 |
+| Records containing ≥1 joiner | 230,671 (99.884%) |
 | Mean joiners per record | 49.7 |
-| Virama+space+consonant remaining¹ | 24,920,343 |
+| Virama+space+consonant remaining¹ | 24,918,069 |
 
 > ¹ Mostly *legitimate* word-final virama before the next word, not errors. The lexicon-gated repair already merged the ~1.3M attested conjuncts per shard; see the repair audit (`sft_zwj_audit.md`) for the small out-of-scope residual.
 
@@ -77,10 +77,10 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 | Record chars | 4,722 | 8,781 | 13,155 | 33,175 |
 | Turns / record | 6 | 8 | 14 | 14 |
 
-## GEN (cleaned+masking-fixed)
+## GEN (cleaned, final)
 
 - Shards analysed: **10**
-- Records (dialogues): **284,336**  ·  messages (turns): **1,510,092**
+- Records (dialogues): **284,275**  ·  messages (turns): **1,509,787**
 
 ### Structural integrity
 
@@ -88,7 +88,7 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 |---|---:|---:|
 | JSON-invalid lines | 0 | 0.000% |
 | Schema-invalid records | 0 | 0.000% |
-| Empty turns | 60 | 0.004% |
+| Empty turns | 0 | 0.000% |
 | Role-alternation violations | 0 | 0.000% |
 
 ### Language / script (translated text)
@@ -98,25 +98,25 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 | Mean Sinhala-letter share per message | 0.9769 |
 | Median Sinhala-letter share | 1.0000 |
 | 1st-percentile Sinhala share | 0.5561 |
-| Low-Sinhala messages (<50% Sinhala letters) | 12,157 (0.805%) |
+| Low-Sinhala messages (<50% Sinhala letters) | 12,153 (0.805%) |
 | Untranslated messages (0 Sinhala, ≥20 Latin) | 247 (0.016%) |
 
 ### Failure modes
 
 | metric | value |
 |---|---:|
-| Empty turns | 60 (0.004%) |
-| Degenerate-repetition messages (zlib ratio < 0.18, ≥200 chars) | 7,148 (0.473%) |
+| Empty turns | 0 (0.000%) |
+| Degenerate-repetition messages (zlib ratio < 0.18, ≥200 chars) | 7,147 (0.473%) |
 | Median compression ratio (long messages) | 0.316 |
 
 ### Orthography — ZWJ / conjuncts
 
 | metric | value |
 |---|---:|
-| Total ZWJ (U+200D) joiners | 10,670,352 |
-| Records containing ≥1 joiner | 283,195 (99.599%) |
+| Total ZWJ (U+200D) joiners | 10,669,078 |
+| Records containing ≥1 joiner | 283,134 (99.599%) |
 | Mean joiners per record | 37.5 |
-| Virama+space+consonant remaining¹ | 22,986,607 |
+| Virama+space+consonant remaining¹ | 22,983,633 |
 
 > ¹ Mostly *legitimate* word-final virama before the next word, not errors. The lexicon-gated repair already merged the ~1.3M attested conjuncts per shard; see the repair audit (`sft_zwj_audit.md`) for the small out-of-scope residual.
 
@@ -124,7 +124,7 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 
 | check | count | rate |
 |---|---:|---:|
-| Duplicate prompt_ids | 1 | 0.000% |
+| Duplicate prompt_ids | 0 | 0.000% |
 | Duplicate content (md5 of turns) | 0 | 0.000% |
 
 ### Size distribution
@@ -132,12 +132,12 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 | metric | p50 | p90 | p99 | max |
 |---|---:|---:|---:|---:|
 | Message chars | 291 | 1,884 | 4,394 | 39,724 |
-| Record chars | 3,445 | 6,921 | 10,482 | 43,707 |
+| Record chars | 3,445 | 6,922 | 10,482 | 43,707 |
 | Turns / record | 5 | 7 | 13 | 13 |
 
 ## Flagged examples (qualitative)
 
-### SFT (cleaned+masking-fixed)
+### SFT (cleaned, final)
 
 **Untranslated (Latin-only) messages** (showing 6):
 
@@ -166,16 +166,7 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 - `86e9d3ddef0c…` — ඔව්, මෙන්න එළවළු කෑම වේලක් ඔයාගේ අච්චාරු දාපු ෆිලෙට් මිග්නොන් සහ තම්බපු සුදුළූණු පිරූ අර්තාපල් එක්ක හොඳින් ගැලපෙනවා:  අර්තාපල් සමග අච්චාරු කළ කොළ බෝංචි  අමුද්‍රව්‍ය: - අළු පාට බෝංචි 1 lb, කපාගත් - පිට
 - `19dad2154e89…` — දශම කාර්යය ද්විමය (දශම) { if (දශම අංකය === 0) { නැවත ලබාදෙන්නේ "0" ලෙසයි. { වෙන දෙයක් නම් (දශම අංක === 1) { නැවත "1" ලබා දෙන්න. වෙන දෙයක් දශම ප්‍රතිපල ද්විමය (Binary) ගණිතමය (මත) දශම ප්‍රතිපල (දශම ප්‍
 
-**Empty turns** (showing 6):
-
-- `9c9477b56d43…` — <empty turn>
-- `8f8e0b1e2de9…` — <empty turn>
-- `1c14d6012a77…` — <empty turn>
-- `fd42655fbf61…` — <empty turn>
-- `d798d243b239…` — <empty turn>
-- `b694b4fc9ec6…` — <empty turn>
-
-### GEN (cleaned+masking-fixed)
+### GEN (cleaned, final)
 
 **Untranslated (Latin-only) messages** (showing 6):
 
@@ -203,15 +194,6 @@ This report measures the **translated Sinhala output** of the cleaned dataset (p
 - `c3cc7890dab2…` — ඔව්, හින්දු ජ්‍යොතිෂයට අනුව, සිකුරු යාන්ත් රාව ස්ථාපිත කිරීමට හා නමස්කාර කිරීමට හොඳම දිනය හා වේලාව සිකුරාදා දිනය වන අතර එය චන්ද්‍රයාගේ වැඩිවීමේ අවධිය හෝ ශුක්ලා පාක්ෂයයි. සිකුරාදා සිකුරු දිනය ලෙස සැලකෙ
 - `354517353d4c…` — ගඟේ පැත්තේ මුල් බැසගත් ගස සහ නිම්නයේ ලිලී යන දෙකම ජීවිතයේ ගමන සඳහා උපමා ලෙස භාවිතා වේ. ගඟක් අසල මුල් බැසගත් ගසක් මෙන්, ජලයෙන් පෝෂණය ලබා ගනිමින් වර්ධනය වී ශක්තිමත් වන්න, ජීවිතයේ ගමන කෙළින් හා පහසු මාවත
 - `23728fae2922…` — පෙරවදන  දුප්පත්කම අවම කිරීම ලොව පුරා මිලියන ගණනක් ජනතාවට බලපාන වඩාත්ම හදිසි ගෝලීය ගැටලුවකි. දුප්පත්කම මිනිස් ජීවිතයේ සෑම අංශයකටම බලපාන අතර ආර්ථික වර්ධනයට, දේශපාලන ස්ථාවරත්වයට හා සමාජ සංවර්ධනයට බාධාවක්
-
-**Empty turns** (showing 6):
-
-- `38e7a263fb17…` — <empty turn>
-- `7b3660a37765…` — <empty turn>
-- `6a581e902db7…` — <empty turn>
-- `d7d78c5b3d5c…` — <empty turn>
-- `f8210c2740bf…` — <empty turn>
-- `e58946390bcf…` — <empty turn>
 
 ## Limitations
 
