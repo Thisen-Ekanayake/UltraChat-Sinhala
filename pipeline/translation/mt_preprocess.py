@@ -83,8 +83,18 @@ def protect(text: str) -> tuple[str, list[str]]:
 
 
 def restore(text: str, originals: list[str]) -> str:
-    """Put masked spans back. Tolerant of model-injected spaces; any placeholder
-    the model dropped is appended so its content is never silently lost."""
+    """Put masked spans back, in place wherever possible.
+
+    Three tiers, so content is never lost or silently displaced:
+      1. Match the intact placeholder ``⟦n⟧`` (tolerant of injected spaces).
+      2. NLLB's SentencePiece can strip the rare U+27E6/U+27E7 brackets, leaving
+         the index as a *bare digit*; recover each still-missing index from its
+         first standalone bare-digit occurrence (ascending, so a placeholder is
+         never pre-empted by a higher-indexed one). A NUL sentinel holds each
+         resolved slot so a digit *inside* an already-mapped span is never
+         re-matched.
+      3. Whatever still cannot be located is appended (last resort).
+    """
     if not originals:
         return text
     seen: set[int] = set()
@@ -93,12 +103,22 @@ def restore(text: str, originals: list[str]) -> str:
         idx = int(m.group(1))
         if 0 <= idx < len(originals):
             seen.add(idx)
-            return originals[idx]
+            return f"\x00{idx}\x00"          # tier-1 hit -> sentinel
         return m.group(0)
 
     restored = _PLACEHOLDER_RE.sub(_sub, text)
+
+    for i in range(len(originals)):           # tier 2: bracket-stripped bare digit
+        if i in seen:
+            continue
+        new, n = re.subn(rf"(?<!\d){i}(?!\d)", f"\x00{i}\x00", restored, count=1)
+        if n:
+            restored = new
+            seen.add(i)
+
+    restored = re.sub(r"\x00(\d+)\x00", lambda m: originals[int(m.group(1))], restored)
     missing = [originals[i] for i in range(len(originals)) if i not in seen]
-    if missing:
+    if missing:                               # tier 3: never lose content
         restored = restored.rstrip() + " " + " ".join(missing)
     return restored
 
